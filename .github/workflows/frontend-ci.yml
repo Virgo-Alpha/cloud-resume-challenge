@@ -1,0 +1,36 @@
+name: Frontend CI/CD - Deploy to S3 + Invalidate CloudFront
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'   # only run when frontend changes
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1  # <-- change to your region (must match S3 bucket region)
+
+      # If you ever add a build step (e.g. bundling, minification), do it here.
+      # For now, we just push raw HTML/CSS/JS.
+
+      - name: Sync frontend to S3 bucket
+        run: |
+          aws s3 sync frontend/ s3://${{ secrets.WEBSITE_BUCKET_NAME }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
