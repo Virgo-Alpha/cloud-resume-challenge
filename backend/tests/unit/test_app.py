@@ -14,6 +14,7 @@ def test_lambda_increments_counter():
     os.environ["TABLE_NAME"] = TABLE_NAME
     os.environ["PRIMARY_KEY"] = "pk"
     os.environ["COUNTER_ATTR"] = "visitCount"
+    os.environ["AWS_REGION"] = "us-east-1"
 
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
     dynamodb.create_table(
