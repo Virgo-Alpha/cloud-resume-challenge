@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 TABLE_NAME = os.environ["TABLE_NAME"]
 PRIMARY_KEY = os.environ.get("PRIMARY_KEY", "pk")
 COUNTER_ATTR = os.environ.get("COUNTER_ATTR", "visitCount")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
