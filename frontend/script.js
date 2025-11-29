@@ -22,16 +22,13 @@ document.addEventListener("DOMContentLoaded", () => {
       "https://virgo-alpha.github.io/assets/docs/Benson_Mugure_Resume.pdf";
     // open in a new tab (user can download/save from there)
     window.open(pdfUrl, "_blank");
-    // or, if you prefer same tab: window.location.href = pdfUrl;
   });
 
   // ---------- VISITOR COUNTER (placeholder) ----------
-  /*
+
   const counterEl = document.getElementById("visitor-count");
 
-  fetch("https://your-api-gateway-url.example.com/visitors", {
-    method: "GET"
-  })
+  fetch("https://cptkl8dp7a.execute-api.us-east-1.amazonaws.com/Prod/count")
     .then((res) => res.json())
     .then((data) => {
       counterEl.textContent = data.count ?? "—";
@@ -40,5 +37,5 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Failed to fetch visitor count:", err);
       counterEl.textContent = "—";
     });
-  */
+
 });

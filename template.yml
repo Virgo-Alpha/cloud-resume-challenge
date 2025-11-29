@@ -86,6 +86,56 @@ Resources:
           - ErrorCode: 404
             ResponseCode: 200
             ResponsePagePath: /index.html
+  
+  VisitorTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-VisitorCount'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+
+  VisitorApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      Cors:
+        AllowMethods: "'GET'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+  VisitorCounterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/src/
+      Handler: app.lambda_handler
+      Runtime: python3.10
+      Timeout: 5
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref VisitorTable
+          PRIMARY_KEY: pk
+          COUNTER_ATTR: visitCount
+      Policies:
+        # Least-privilege IAM: only this table, only UpdateItem
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource: !GetAtt VisitorTable.Arn
+      Events:
+        GetCount:
+          Type: Api
+          Properties:
+            Path: /count
+            Method: get
+            RestApiId: !Ref VisitorApi
 
 Outputs:
   WebsiteBucketName:
@@ -105,3 +155,11 @@ Outputs:
     Value: !Ref WebsiteCloudFrontDistribution
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  VisitorTableName:
+    Description: DynamoDB table for visitor count
+    Value: !Ref VisitorTable
+
+  VisitorApiUrl:
+    Description: Base URL for the visitor counter API
+    Value: !Sub 'https://${VisitorApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
