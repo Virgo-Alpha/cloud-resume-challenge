@@ -2,13 +2,13 @@ import os
 import json
 
 import boto3
-from moto import mock_dynamodb
+from moto import mock_aws
 
 
 TABLE_NAME = "test-VisitorCount"
 
 
-@mock_dynamodb
+@mock_aws
 def test_lambda_increments_counter():
     # Arrange: create mock table
     os.environ["TABLE_NAME"] = TABLE_NAME
