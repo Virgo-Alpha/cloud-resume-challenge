@@ -8,7 +8,7 @@ PRIMARY_KEY = os.environ.get("PRIMARY_KEY", "pk")
 COUNTER_ATTR = os.environ.get("COUNTER_ATTR", "visitCount")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-dynamodb = boto3.resource("dynamodb")
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 table = dynamodb.Table(TABLE_NAME)
 
 
