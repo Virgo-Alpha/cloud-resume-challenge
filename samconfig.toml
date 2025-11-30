@@ -7,6 +7,7 @@ s3_prefix = "cloud-resume-challenge"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 image_repositories = []
+disable_rollback = true
 
 [default.global.parameters]
 region = "us-east-1"

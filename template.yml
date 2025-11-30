@@ -24,7 +24,7 @@ Resources:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub "OAI for ${AWS::StackName} website"
+        Comment: !Sub OAI for ${AWS::StackName} website
 
   # Allow CloudFront OAI to read objects from the bucket
   WebsiteBucketPolicy:
@@ -38,8 +38,8 @@ Resources:
             Effect: Allow
             Principal:
               CanonicalUser: !GetAtt WebsiteCloudFrontOAI.S3CanonicalUserId
-            Action: 's3:GetObject'
-            Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Action: s3:GetObject
+            Resource: !Sub ${WebsiteBucket.Arn}/*
 
   # CloudFront distribution in front of the S3 bucket
   WebsiteCloudFrontDistribution:
@@ -47,20 +47,20 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: !Sub 'Cloud Resume static site for ${AWS::StackName}'
+        Comment: !Sub Cloud Resume static site for ${AWS::StackName}
         DefaultRootObject: index.html
         HttpVersion: http2
-        PriceClass: PriceClass_100  # cheapest global option
+        PriceClass: PriceClass_100 # cheapest global option
 
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt WebsiteBucket.RegionalDomainName
             S3OriginConfig:
-              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${WebsiteCloudFrontOAI}'
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${WebsiteCloudFrontOAI}
 
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https   # <-- HTTP → HTTPS
+          ViewerProtocolPolicy: redirect-to-https # <-- HTTP → HTTPS
           AllowedMethods:
             - GET
             - HEAD
@@ -86,11 +86,11 @@ Resources:
           - ErrorCode: 404
             ResponseCode: 200
             ResponsePagePath: /index.html
-  
+
   VisitorTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${AWS::StackName}-VisitorCount'
+      TableName: !Sub ${AWS::StackName}-VisitorCount
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: pk
@@ -102,12 +102,13 @@ Resources:
   VisitorApi:
     Type: AWS::Serverless::Api
     Properties:
+      Name: !Sub ${AWS::StackName}-VisitorApi
       StageName: Prod
       EndpointConfiguration: REGIONAL
       Cors:
-        AllowMethods: "'GET'"
-        AllowHeaders: "'Content-Type'"
-        AllowOrigin: "'*'"
+        AllowMethods: '''GET'''
+        AllowHeaders: '''Content-Type'''
+        AllowOrigin: '''*'''
 
   VisitorCounterFunction:
     Type: AWS::Serverless::Function
@@ -137,24 +138,141 @@ Resources:
             Method: get
             RestApiId: !Ref VisitorApi
 
+  # SNS topic for alarm notifications
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-alarm-topic
+
+  # Email subscription to the SNS topic
+  AlarmNotificationSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: b.mugure@alustudent.com # replace with your own email to replicate
+      TopicArn: !Ref AlarmNotificationTopic
+
+  VisitorLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-visitor-lambda-errors
+      AlarmDescription: Alarm if VisitorCounterFunction has errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VisitorCounterFunction
+      Statistic: Sum
+      Period: 300 # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  # Cloudwatch Alarm for high latency on API Gateway
+  VisitorApiHighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-api-latency
+      AlarmDescription: Alarm if API Gateway latency is high
+      Namespace: AWS/ApiGateway
+      MetricName: Latency
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub ${AWS::StackName}-VisitorApi
+        - Name: Stage
+          Value: Prod
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 2000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      ExtendedStatistic: p99
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  # Cloudwatch Dashboard
+  CloudResumeDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${AWS::StackName}-dashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Total Page Views",
+                "metrics": [
+                  [ "CloudResume", "PageView", { "stat": "Sum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Visitor Lambda Invocations",
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${VisitorCounterFunction}", { "stat": "Sum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "API Gateway Latency (Prod)",
+                "metrics": [
+                  [ "AWS/ApiGateway", "Latency", "ApiName", "${AWS::StackName}-VisitorApi", "Stage", "Prod", { "stat": "p99" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            }
+          ]
+        }
+
 Outputs:
   WebsiteBucketName:
     Description: Name of the S3 bucket hosting the website files
     Value: !Ref WebsiteBucket
     Export:
-      Name: !Sub '${AWS::StackName}-WebsiteBucketName'
+      Name: !Sub ${AWS::StackName}-WebsiteBucketName
 
   WebsiteCloudFrontDomainName:
     Description: CloudFront distribution domain name
     Value: !GetAtt WebsiteCloudFrontDistribution.DomainName
     Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontDomain'
+      Name: !Sub ${AWS::StackName}-CloudFrontDomain
 
   WebsiteCloudFrontDistributionId:
     Description: CloudFront distribution ID
     Value: !Ref WebsiteCloudFrontDistribution
     Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+      Name: !Sub ${AWS::StackName}-CloudFrontDistributionId
 
   VisitorTableName:
     Description: DynamoDB table for visitor count
@@ -162,4 +280,4 @@ Outputs:
 
   VisitorApiUrl:
     Description: Base URL for the visitor counter API
-    Value: !Sub 'https://${VisitorApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Value: !Sub https://${VisitorApi}.execute-api.${AWS::Region}.amazonaws.com/Prod

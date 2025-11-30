@@ -3,6 +3,21 @@
 This repository contains my implementation of the **AWS Cloud Resume Challenge**.  
 It includes a static resume frontend, a serverless backend visitor counter, and full CI/CD with GitHub Actions.
 
+```mermaid
+flowchart TD
+
+    CF["CloudFront<br>HTTPS + OAI"] --> S3["S3 Static Website<br>(Private)"]
+    CF --> API["API Gateway<br>/Prod/count"]
+
+    API --> L["Lambda<br>VisitorCounter"]
+    L --> D["DynamoDB<br>VisitorCount Table"]
+
+    L --> CW["CloudWatch<br>Metrics"]
+    CW --> SNS["SNS Email<br>Alerts"]
+
+    CW --> DASH["CloudWatch<br>Dashboard"]
+```
+
 ---
 
 ## Table of Contents
@@ -26,6 +41,17 @@ It includes a static resume frontend, a serverless backend visitor counter, and 
   - [Unit Tests](#2-run-unit-tests-offline)
   - [Integration Tests](#3-run-integration-tests-against-live-aws)
 - [Security](#security)
+- [monitoring](#monitoring)
+  - [CloudWatch Logs](#cloudwatch-logs)
+  - [CloudWatch Metrics](#cloudwatch-metrics)
+    - [AWS Native Metrics](#aws-native-metrics)
+    - [Custom Metrics](#custom-metrics)
+  - [CloudWatch Alarms](#cloudwatch-alarms)
+    - [Lambda Error Alarm](#lambda-error-alarm)
+    - [API Gateway Latency Alarm](#api-gateway-latency-alarm)
+  - [SNS Notifications (Email Alerts)](#sns-notifications-email-alerts)
+  - [CloudWatch Dashboard](#cloudwatch-dashboard)
+  - [Summary](#summary)
 - [Blog Post](#blog-post-planned)
 
 </details>
@@ -455,6 +481,182 @@ Key security measures in this project:
   * DynamoDB access only via Lambda
   * API Gateway endpoint only exposes `GET /count` with minimal logic
 
+---
+Great — here is a polished **Monitoring** section you can drop directly into your README.
+It matches your stack exactly: CloudWatch Logs, Metrics, Alarms, SNS notifications, and the custom Dashboard you added with SAM.
+
+---
+
+## Monitoring
+
+Monitoring for this project is implemented using **Amazon CloudWatch** and **SNS**.
+All monitoring resources are fully provisioned through **Infrastructure as Code (SAM)**.
+
+This section covers:
+
+* CloudWatch **logs**
+* CloudWatch **metrics** (built-in + custom)
+* CloudWatch **alarms**
+* CloudWatch **dashboard**
+* SNS **email notifications** for alerts
+
+---
+
+### CloudWatch Logs
+
+AWS automatically generates logs for:
+
+#### **Lambda Logs**
+
+* Path: `/aws/lambda/<function-name>`
+* Captures:
+
+  * Handler output
+  * Errors/exceptions
+  * Cold starts
+  * Timing information
+
+Log retention is also managed by SAM, ensuring logs do not accumulate indefinitely.
+
+#### **API Gateway Execution Logs (optional)**
+
+If enabled, these include:
+
+* Request details
+* Integration latency
+* Error messages returned by Lambda
+
+---
+
+### CloudWatch Metrics
+
+CloudWatch metrics provide detailed visibility into application behavior.
+This project tracks both **AWS-native metrics** and **custom application metrics**.
+
+#### **AWS Native Metrics**
+
+##### Lambda (`AWS/Lambda`)
+
+* **Invocations**
+  Total number of times the function ran (reflects page views).
+* **Errors**
+  Any unhandled exception in the Lambda.
+* **Duration**
+  Time spent executing the handler.
+
+##### API Gateway (`AWS/ApiGateway`)
+
+* **Latency** (end-to-end)
+* **IntegrationLatency** (Lambda time only)
+* **4XX / 5XX errors**
+
+These metrics allow you to visualize traffic volume and performance trends for the backend API.
+
+---
+
+### Custom Metrics
+
+The Lambda function emits a **custom CloudWatch metric**:
+
+* Namespace: **`CloudResume`**
+* Metric: **`PageView`**
+* Unit: **Count**
+* Value: **1 per visitor counter invocation**
+
+This custom metric provides accurate tracking of **total resume page views**, independent of Lambda’s built-in invocation count.
+
+Example emission:
+
+```python
+cloudwatch.put_metric_data(
+    Namespace="CloudResume",
+    MetricData=[
+        {
+            "MetricName": "PageView",
+            "Value": 1,
+            "Unit": "Count",
+        }
+    ],
+)
+```
+
+---
+
+### CloudWatch Alarms
+
+To ensure visibility into failures or performance issues, CloudWatch alarms are defined in the SAM template.
+
+#### **Lambda Error Alarm**
+
+Triggers when:
+
+* More than 1 error occurs over a 5-minute window.
+
+Purpose:
+
+* Detect unexpected failures in visitor counter execution.
+
+#### **API Gateway Latency Alarm**
+
+Triggers when:
+
+* API latency exceeds a defined threshold (e.g., 2 seconds p99).
+
+Purpose:
+
+* Detect degraded performance or downstream bottlenecks.
+
+Both alarms notify the SNS topic described below.
+
+---
+
+### SNS Notifications (Email Alerts)
+
+An **SNS Topic** is provisioned to receive alarm notifications.
+
+SAM resources include:
+
+* **SNS Topic**
+* **Email subscription**
+* **CloudWatch Alarm → SNSAction** wiring
+
+After deployment, AWS sends a **confirmation email**.
+Alerts begin flowing **only after confirming subscription**.
+
+Notifications include:
+
+* Lambda error spikes
+* High API latency
+* Any additional alarms added in the future
+
+---
+
+### CloudWatch Dashboard
+
+A custom CloudWatch dashboard provides a single glance view of key metrics:
+
+### Dashboard Widgets
+
+* **PageView** custom metric
+* **Lambda Invocations**
+* **API Gateway Latency (Prod)**
+
+This dashboard is defined entirely via SAM using a JSON `DashboardBody` block and is automatically updated on redeployment.
+
+---
+
+### Summary
+
+Monitoring in this project includes:
+
+| Component             | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| **CloudWatch Logs**   | Debugging, tracing, and root-cause analysis     |
+| **Built-in Metrics**  | Lambda performance, API latency, error rates    |
+| **Custom Metrics**    | Accurate page views counter                     |
+| **CloudWatch Alarms** | Automated detection of failures and slowness    |
+| **SNS Email Alerts**  | Direct notification on issues                   |
+| **Dashboard**         | Real-time visibility into traffic and stability |
 ---
 
 ## Blog Post (Planned)
