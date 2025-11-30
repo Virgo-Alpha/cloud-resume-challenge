@@ -123,13 +123,19 @@ Resources:
           PRIMARY_KEY: pk
           COUNTER_ATTR: visitCount
       Policies:
-        # Least-privilege IAM: only this table, only UpdateItem
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:
                 - dynamodb:UpdateItem
               Resource: !GetAtt VisitorTable.Arn
+            - Effect: Allow
+              Action:
+                - cloudwatch:PutMetricData
+              Resource: "*"
+              Condition:
+                StringEquals:
+                  "cloudwatch:namespace": "CloudResume"
       Events:
         GetCount:
           Type: Api
