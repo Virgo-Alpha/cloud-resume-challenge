@@ -659,13 +659,14 @@ Monitoring in this project includes:
 | **Dashboard**         | Real-time visibility into traffic and stability |
 ---
 
-## Blog Post (Planned)
+## Blog Post
 
-I plan to write a blog post covering:
+I wrote a blog post about building this project, including:
 
-* Design decisions (why S3 + CloudFront + OAI)
-* SAM vs manual CloudFormation
-* CI/CD strategy for frontend and backend
-* Lessons learned about testing serverless (moto + integration tests)
+- Design decisions (why S3 + CloudFront + OAI)
+- Why I used SAM (and how it maps to CloudFormation)
+- CI/CD strategy for frontend and backend (GitHub Actions)
+- Testing serverless properly (moto unit tests + live integration tests)
+- Monitoring and alerting (CloudWatch metrics/alarms/dashboard + SNS)
 
-*(Link will be added here once published.)*
+Read it here: **https://dev.to/aws-builders/aws-cloud-resume-challenge-my-attempt-544m**
